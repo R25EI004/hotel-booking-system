@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 import HotelCard from "../components/HotelCard";
 
-const sampleHotels = [
+const fallbackHotels = [
   {
     id: 1,
     name: "Grand Comfort Hotel",
@@ -9,8 +11,7 @@ const sampleHotels = [
     description: "A comfortable hotel with modern rooms and amenities.",
     rating: 4.5,
     price: 2500,
-    image:
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945",
+    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945",
   },
   {
     id: 2,
@@ -19,8 +20,7 @@ const sampleHotels = [
     description: "Enjoy a relaxing stay close to popular city attractions.",
     rating: 4.2,
     price: 1800,
-    image:
-      "https://images.unsplash.com/photo-1564501049412-61c2a3083791",
+    image: "https://images.unsplash.com/photo-1564501049412-61c2a3083791",
   },
   {
     id: 3,
@@ -29,8 +29,7 @@ const sampleHotels = [
     description: "A stylish hotel for family holidays and business trips.",
     rating: 4.7,
     price: 3200,
-    image:
-      "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb",
+    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb",
   },
   {
     id: 4,
@@ -39,15 +38,39 @@ const sampleHotels = [
     description: "Relax near the coast and enjoy a peaceful getaway.",
     rating: 4.8,
     price: 4000,
-    image:
-      "https://images.unsplash.com/photo-1571896349842-33c89424de2d",
+    image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d",
   },
 ];
 
 export default function Hotels() {
-  const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [hotels, setHotels] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredHotels = sampleHotels.filter(
+  useEffect(() => {
+    async function fetchHotels() {
+      try {
+        const { data, error } = await supabase
+          .from("hotels")
+          .select("*")
+          .order("id", { ascending: true });
+
+        if (error || !data || data.length === 0) {
+          setHotels(fallbackHotels);
+        } else {
+          setHotels(data);
+        }
+      } catch {
+        setHotels(fallbackHotels);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHotels();
+  }, []);
+
+  const filteredHotels = hotels.filter(
     (hotel) =>
       hotel.name.toLowerCase().includes(search.toLowerCase()) ||
       hotel.location.toLowerCase().includes(search.toLowerCase())
@@ -56,7 +79,7 @@ export default function Hotels() {
   return (
     <section className="section">
       <h1>Explore Hotels</h1>
-      <p>Find your next stay from our sample hotel collection.</p>
+      <p>Find your next stay from our hotel collection.</p>
 
       <input
         className="hotel-search"
@@ -66,7 +89,9 @@ export default function Hotels() {
         onChange={(e) => setSearch(e.target.value)}
       />
 
-      {filteredHotels.length === 0 ? (
+      {loading ? (
+        <p>Loading hotels...</p>
+      ) : filteredHotels.length === 0 ? (
         <p>No hotels found. Try another search.</p>
       ) : (
         <div className="hotel-grid">

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-export default function Signup() {
+export default function Signup({ user }) {
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -9,10 +10,18 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState("");
 
-  function handleSignup(e) {
+  // If already logged in, redirect to home
+  useEffect(() => {
+    if (user) navigate("/");
+  }, [user]);
+
+  async function handleSignup(e) {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
     if (!name.trim()) {
       setError("Please enter your name.");
@@ -30,7 +39,7 @@ export default function Signup() {
       !/[0-9]/.test(password)
     ) {
       setError(
-        "Password must contain at least 8 characters, including a letter and a number."
+        "Password must be at least 8 characters and include a letter and a number."
       );
       return;
     }
@@ -40,8 +49,26 @@ export default function Signup() {
       return;
     }
 
-    alert("Frontend signup demonstration completed!");
-    navigate("/login");
+    setLoading(true);
+
+    const { error: authError } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { full_name: name.trim() },
+      },
+    });
+
+    setLoading(false);
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    setSuccess(
+      "Account created! Please check your email to confirm your account, then login."
+    );
   }
 
   return (
@@ -52,45 +79,70 @@ export default function Signup() {
 
         {error && <p className="error-message">{error}</p>}
 
-        <label>Full Name</label>
-        <input
-          type="text"
-          placeholder="Enter your name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
+        {success ? (
+          <div>
+            <p style={{ color: "#17683a", background: "#e3f8eb", padding: "12px", borderRadius: "7px" }}>
+              {success}
+            </p>
+            <Link to="/login" className="primary-button full-width" style={{ marginTop: "16px" }}>
+              Go to Login
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="form-group">
+              <label>Full Name</label>
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
 
-        <label>Email Address</label>
-        <input
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+            <div className="form-group">
+              <label>Email Address</label>
+              <input
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
 
-        <label>Password</label>
-        <input
-          type="password"
-          placeholder="At least 8 characters"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+            <div className="form-group">
+              <label>Password</label>
+              <input
+                type="password"
+                placeholder="At least 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
 
-        <label>Confirm Password</label>
-        <input
-          type="password"
-          placeholder="Confirm your password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
+            <div className="form-group">
+              <label>Confirm Password</label>
+              <input
+                type="password"
+                placeholder="Confirm your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
 
-        <button type="submit" className="primary-button full-width">
-          Sign Up
-        </button>
+            <button
+              type="submit"
+              className="primary-button full-width"
+              disabled={loading}
+            >
+              {loading ? "Creating Account..." : "Sign Up"}
+            </button>
+          </>
+        )}
 
         <p className="auth-footer">
           Already have an account? <Link to="/login">Login</Link>

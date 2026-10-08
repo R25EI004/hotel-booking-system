@@ -1,45 +1,68 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-const hotels = [
-  {
-    id: 1,
-    name: "Grand Comfort Hotel",
-    location: "Bengaluru",
-    price: 2500,
-  },
-  {
-    id: 2,
-    name: "City View Residency",
-    location: "Bengaluru",
-    price: 1800,
-  },
-  {
-    id: 3,
-    name: "Royal Garden Hotel",
-    location: "Chennai",
-    price: 3200,
-  },
-  {
-    id: 4,
-    name: "Ocean Breeze Hotel",
-    location: "Goa",
-    price: 4000,
-  },
+const fallbackHotels = [
+  { id: 1, name: "Grand Comfort Hotel", location: "Bengaluru", price: 2500 },
+  { id: 2, name: "City View Residency", location: "Bengaluru", price: 1800 },
+  { id: 3, name: "Royal Garden Hotel", location: "Chennai", price: 3200 },
+  { id: 4, name: "Ocean Breeze Hotel", location: "Goa", price: 4000 },
 ];
 
-export default function Booking() {
+export default function Booking({ user }) {
   const { hotelId } = useParams();
   const navigate = useNavigate();
 
-  const hotel = hotels.find((item) => item.id === Number(hotelId));
+  const [hotel, setHotel] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Pre-fill user details if logged in
+  useEffect(() => {
+    if (user) {
+      setName(user.user_metadata?.full_name || "");
+      setEmail(user.email || "");
+    }
+  }, [user]);
+
+  // Fetch hotel from Supabase, fallback to static data
+  useEffect(() => {
+    async function fetchHotel() {
+      try {
+        const { data, err } = await supabase
+          .from("hotels")
+          .select("*")
+          .eq("id", hotelId)
+          .single();
+
+        if (err || !data) {
+          setHotel(fallbackHotels.find((h) => h.id === Number(hotelId)) || null);
+        } else {
+          setHotel(data);
+        }
+      } catch {
+        setHotel(fallbackHotels.find((h) => h.id === Number(hotelId)) || null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHotel();
+  }, [hotelId]);
+
+  if (loading) {
+    return (
+      <section className="section">
+        <p>Loading hotel information...</p>
+      </section>
+    );
+  }
 
   if (!hotel) {
     return (
@@ -50,7 +73,14 @@ export default function Booking() {
     );
   }
 
-  function handleBooking(e) {
+  const nights =
+    checkIn && checkOut && checkOut > checkIn
+      ? Math.ceil(
+          (new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24)
+        )
+      : 1;
+
+  async function handleBooking(e) {
     e.preventDefault();
     setError("");
 
@@ -74,29 +104,61 @@ export default function Booking() {
       return;
     }
 
-    const booking = {
-      id: Date.now(),
-      hotelName: hotel.name,
-      location: hotel.location,
-      price: hotel.price,
-      name,
-      email,
-      checkIn,
-      checkOut,
-      guests,
-      status: "Confirmed (Demo)",
-    };
+    setSubmitting(true);
 
-    const existingBookings = JSON.parse(
-      localStorage.getItem("hotelBookings") || "[]"
-    );
+    try {
+      // Try to save to Supabase
+      const { data: inserted, error: dbError } = await supabase
+        .from("bookings")
+        .insert([
+          {
+            hotel_id: Number(hotel.id),
+            hotel_name: hotel.name,
+            location: hotel.location,
+            price: Number(hotel.price),
+            user_name: name.trim(),
+            user_email: email.trim(),
+            check_in: checkIn,
+            check_out: checkOut,
+            guests: Number(guests),
+            status: "Confirmed",
+            user_id: user?.id || null,
+          },
+        ])
+        .select()
+        .single();
 
-    localStorage.setItem(
-      "hotelBookings",
-      JSON.stringify([...existingBookings, booking])
-    );
+      if (dbError) {
+        console.warn("Supabase insert error:", dbError.message);
+      }
 
-    navigate("/history");
+      // Always save to localStorage as local backup
+      const localBooking = {
+        id: inserted?.id || Date.now(),
+        hotelName: hotel.name,
+        location: hotel.location,
+        price: hotel.price,
+        name: name.trim(),
+        email: email.trim(),
+        checkIn,
+        checkOut,
+        guests,
+        status: "Confirmed",
+      };
+
+      const existing = JSON.parse(localStorage.getItem("hotelBookings") || "[]");
+      localStorage.setItem(
+        "hotelBookings",
+        JSON.stringify([...existing, localBooking])
+      );
+
+      navigate("/history");
+    } catch (err) {
+      console.error("Booking error:", err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -106,7 +168,7 @@ export default function Booking() {
 
         <h3>{hotel.name}</h3>
         <p>📍 {hotel.location}</p>
-        <h3>₹{hotel.price} / night</h3>
+        <h3>₹{Number(hotel.price).toLocaleString()} / night</h3>
 
         {error && <p className="error-message">{error}</p>}
 
@@ -154,8 +216,21 @@ export default function Booking() {
             required
           />
 
-          <button type="submit" className="primary-button full-width">
-            Confirm Demo Booking
+          {checkIn && checkOut && checkOut > checkIn && (
+            <p>
+              <strong>
+                {nights} night(s) × ₹{Number(hotel.price).toLocaleString()} ={" "}
+                ₹{(nights * Number(hotel.price)).toLocaleString()} total
+              </strong>
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button full-width"
+            disabled={submitting}
+          >
+            {submitting ? "Confirming..." : "Confirm Booking"}
           </button>
         </form>
       </div>

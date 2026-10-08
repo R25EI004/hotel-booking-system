@@ -1,96 +1,81 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-export default function Login() {
+export default function Login({ user }) {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleChange = (event) => {
-    setFormData({
-      ...formData,
-      [event.target.name]: event.target.value,
-    });
+  // If already logged in, redirect to home
+  useEffect(() => {
+    if (user) navigate("/");
+  }, [user]);
+
+  async function handleLogin(e) {
+    e.preventDefault();
     setError("");
-  };
+    setLoading(true);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-    const email = formData.email.trim();
-    const password = formData.password;
-
-    // Validate the form
-    if (!email || !password) {
-      setError("Please enter your email and password.");
+    if (authError) {
+      setError(authError.message);
+      setLoading(false);
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-
-    // Frontend-only demo login
     localStorage.setItem("isLoggedIn", "true");
-    localStorage.setItem("userEmail", email);
-
-    alert("Login successful!");
-
-    // Navigate to the home page
     navigate("/");
-  };
+  }
 
   return (
     <div className="auth-container">
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <h2>Login to StayEase</h2>
+      <form className="auth-card" onSubmit={handleLogin}>
+        <h1>Welcome Back</h1>
+        <p>Login to your StayEase account.</p>
 
-        {error && (
-          <p style={{ color: "red" }} role="alert">
-            {error}
-          </p>
-        )}
+        {error && <p className="error-message">{error}</p>}
 
         <div className="form-group">
-          <label htmlFor="email">Email Address</label>
+          <label>Email Address</label>
           <input
-            id="email"
             type="email"
-            name="email"
             placeholder="Enter your email"
-            value={formData.email}
-            onChange={handleChange}
-            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="password">Password</label>
+          <label>Password</label>
           <input
-            id="password"
             type="password"
-            name="password"
             placeholder="Enter your password"
-            value={formData.password}
-            onChange={handleChange}
-            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             required
           />
         </div>
 
-        <button type="submit" className="primary-button">
-          Login
+        <button
+          type="submit"
+          className="primary-button full-width"
+          disabled={loading}
+        >
+          {loading ? "Logging in..." : "Login"}
         </button>
 
-        <p>
-          Don't have an account? <Link to="/signup">Sign Up</Link>
+        <p className="auth-footer">
+          Don&apos;t have an account?{" "}
+          <Link to="/signup">Sign Up</Link>
         </p>
       </form>
     </div>

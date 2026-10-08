@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-const hotels = [
+const fallbackHotels = [
   {
     id: 1,
     name: "Grand Comfort Hotel",
@@ -8,8 +10,7 @@ const hotels = [
     description: "A comfortable hotel with modern rooms and amenities.",
     rating: 4.5,
     price: 2500,
-    image:
-      "https://images.unsplash.com/photo-1566073771259-6a8506099945",
+    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945",
   },
   {
     id: 2,
@@ -18,8 +19,7 @@ const hotels = [
     description: "Enjoy a relaxing stay close to popular city attractions.",
     rating: 4.2,
     price: 1800,
-    image:
-      "https://images.unsplash.com/photo-1564501049412-61c2a3083791",
+    image: "https://images.unsplash.com/photo-1564501049412-61c2a3083791",
   },
   {
     id: 3,
@@ -28,8 +28,7 @@ const hotels = [
     description: "A stylish hotel for family holidays and business trips.",
     rating: 4.7,
     price: 3200,
-    image:
-      "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb",
+    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb",
   },
   {
     id: 4,
@@ -38,15 +37,47 @@ const hotels = [
     description: "Relax near the coast and enjoy a peaceful getaway.",
     rating: 4.8,
     price: 4000,
-    image:
-      "https://images.unsplash.com/photo-1571896349842-33c89424de2d",
+    image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d",
   },
 ];
 
 export default function HotelDetails() {
   const { hotelId } = useParams();
+  const [hotel, setHotel] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const hotel = hotels.find((item) => item.id === Number(hotelId));
+  useEffect(() => {
+    async function fetchHotel() {
+      try {
+        const { data, error } = await supabase
+          .from("hotels")
+          .select("*")
+          .eq("id", hotelId)
+          .single();
+
+        if (error || !data) {
+          const fallback = fallbackHotels.find((h) => h.id === Number(hotelId));
+          setHotel(fallback || null);
+        } else {
+          setHotel(data);
+        }
+      } catch {
+        const fallback = fallbackHotels.find((h) => h.id === Number(hotelId));
+        setHotel(fallback || null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchHotel();
+  }, [hotelId]);
+
+  if (loading) {
+    return (
+      <section className="section">
+        <p>Loading hotel details...</p>
+      </section>
+    );
+  }
 
   if (!hotel) {
     return (
@@ -68,7 +99,7 @@ export default function HotelDetails() {
         <p>📍 {hotel.location}</p>
         <p>⭐ {hotel.rating}</p>
         <p>{hotel.description}</p>
-        <h2>₹{hotel.price} / night</h2>
+        <h2>₹{Number(hotel.price).toLocaleString()} / night</h2>
 
         <Link to={`/booking/${hotel.id}`} className="primary-button">
           Book This Hotel

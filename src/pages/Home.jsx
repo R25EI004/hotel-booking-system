@@ -1,5 +1,46 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
+import HotelCard from "../components/HotelCard";
+
+const fallbackHotels = [
+  {
+    id: 1,
+    name: "Grand Comfort Hotel",
+    location: "Bengaluru",
+    description: "A comfortable hotel with modern rooms and amenities.",
+    rating: 4.5,
+    price: 2500,
+    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945",
+  },
+  {
+    id: 2,
+    name: "City View Residency",
+    location: "Bengaluru",
+    description: "Enjoy a relaxing stay close to popular city attractions.",
+    rating: 4.2,
+    price: 1800,
+    image: "https://images.unsplash.com/photo-1564501049412-61c2a3083791",
+  },
+  {
+    id: 3,
+    name: "Royal Garden Hotel",
+    location: "Chennai",
+    description: "A stylish hotel for family holidays and business trips.",
+    rating: 4.7,
+    price: 3200,
+    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb",
+  },
+  {
+    id: 4,
+    name: "Ocean Breeze Hotel",
+    location: "Goa",
+    description: "Relax near the coast and enjoy a peaceful getaway.",
+    rating: 4.8,
+    price: 4000,
+    image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d",
+  },
+];
 
 export default function Home() {
   const navigate = useNavigate();
@@ -8,8 +49,31 @@ export default function Home() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState(1);
-
   const [error, setError] = useState("");
+
+  const [featuredHotels, setFeaturedHotels] = useState([]);
+  const [loadingHotels, setLoadingHotels] = useState(true);
+
+  useEffect(() => {
+    async function fetchFeatured() {
+      try {
+        const { data, error: dbErr } = await supabase
+          .from("hotels")
+          .select("*")
+          .limit(3);
+        if (dbErr || !data || data.length === 0) {
+          setFeaturedHotels(fallbackHotels.slice(0, 3));
+        } else {
+          setFeaturedHotels(data);
+        }
+      } catch {
+        setFeaturedHotels(fallbackHotels.slice(0, 3));
+      } finally {
+        setLoadingHotels(false);
+      }
+    }
+    fetchFeatured();
+  }, []);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -30,20 +94,17 @@ export default function Home() {
       return;
     }
 
-    navigate("/hotels");
+    navigate(`/hotels?search=${encodeURIComponent(destination.trim())}`);
   }
 
   return (
     <>
+      {/* HERO */}
       <section className="hero">
         <div className="hero-content">
           <p className="eyebrow">WELCOME TO STAYEASE</p>
-
           <h1>Find Your Perfect Stay</h1>
-
-          <p>
-            Discover beautiful hotels and plan your next memorable trip.
-          </p>
+          <p>Discover beautiful hotels and plan your next memorable trip.</p>
 
           <form className="search-form" onSubmit={handleSearch}>
             <div>
@@ -96,6 +157,23 @@ export default function Home() {
         </div>
       </section>
 
+      {/* FEATURED HOTELS */}
+      <section className="section">
+        <h2>Popular Hotels</h2>
+        <p>Find your next stay from our top picks.</p>
+
+        {loadingHotels ? (
+          <p>Loading hotels...</p>
+        ) : (
+          <div className="hotel-grid">
+            {featuredHotels.map((hotel) => (
+              <HotelCard key={hotel.id} hotel={hotel} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* FEATURES */}
       <section className="section">
         <h2>Why Choose StayEase?</h2>
 

@@ -1,21 +1,21 @@
 import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
-export default function Navbar() {
+export default function Navbar({ user }) {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    // Clear demo login status
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     localStorage.removeItem("isLoggedIn");
-
     alert("Logged out successfully!");
     navigate("/login");
   };
 
-  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+  const isLoggedIn = Boolean(user) || localStorage.getItem("isLoggedIn") === "true";
 
   return (
     <nav className="navbar">
-      <Link to="/" className="logo">
+      <Link to="/" className="brand">
         StayEase
       </Link>
 
@@ -31,7 +31,7 @@ export default function Navbar() {
         ) : (
           <>
             <Link to="/login">Login</Link>
-            <Link to="/signup">Sign Up</Link>
+            <Link to="/signup" className="nav-signup">Sign Up</Link>
           </>
         )}
       </div>
